@@ -450,5 +450,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Profile routes
+  app.patch('/api/user/profile', authenticateJWT, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { firstName, lastName, email, department } = req.body;
+
+      // Validate input
+      if (!firstName || !lastName || !email) {
+        return res.status(400).json({ message: "First name, last name, and email are required" });
+      }
+
+      // Check if email is already taken by another user
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ message: "Email is already in use" });
+      }
+
+      // Update user profile
+      const updatedUser = await storage.updateUser(userId, {
+        firstName,
+        lastName,
+        email,
+        department: department || null,
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Remove password from response
+      const { password, ...userWithoutPassword } = updatedUser;
+
+      res.json({
+        success: true,
+        user: userWithoutPassword,
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Enrollment routes
+  app.post('/api/enrollments', authenticateJWT, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { courseId } = req.body;
+
+      if (!courseId) {
+        return res.status(400).json({ message: "Course ID is required" });
+      }
+
+      // Verify user is a student
+      const user = await storage.getUserById(userId);
+      if (!user || user.role !== 'student') {
+        return res.status(403).json({ message: "Only students can enroll in courses" });
+      }
+
+      // Verify course exists
+      const course = await storage.getCourseById(courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+
+      // Check if already enrolled
+      const enrollments = await storage.getStudentEnrollments(userId);
+      const alreadyEnrolled = enrollments.some(e => e.courseId === courseId);
+      if (alreadyEnrolled) {
+        return res.status(400).json({ message: "Already enrolled in this course" });
+      }
+
+      // Get current term (in a real app, this would be more sophisticated)
+      const currentTerm = "Fall 2024";
+
+      // Enroll student
+      const enrollment = await storage.enrollStudentInCourse(userId, courseId, currentTerm);
+
+      res.json({
+        success: true,
+        enrollment,
+      });
+    } catch (error) {
+      console.error('Error enrolling in course:', error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete('/api/enrollments/:enrollmentId', authenticateJWT, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const enrollmentId = parseInt(req.params.enrollmentId, 10);
+
+      if (isNaN(enrollmentId)) {
+        return res.status(400).json({ message: "Invalid enrollment ID" });
+      }
+
+      // Verify user is a student
+      const user = await storage.getUserById(userId);
+      if (!user || user.role !== 'student') {
+        return res.status(403).json({ message: "Only students can withdraw from courses" });
+      }
+
+      // Delete enrollment
+      await storage.deleteEnrollment(enrollmentId, userId);
+
+      res.json({
+        success: true,
+      });
+    } catch (error) {
+      console.error('Error withdrawing from course:', error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Attendance statistics route
+  app.get('/api/attendance/stats', authenticateJWT, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get attendance statistics
+      const stats = await storage.getAttendanceStats(userId);
+
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching attendance stats:', error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }

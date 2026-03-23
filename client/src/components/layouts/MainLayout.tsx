@@ -27,7 +27,9 @@ export default function MainLayout({ children, user }: MainLayoutProps) {
     { path: "/timetable", label: "My Timetable", icon: "calendar_today" },
     { path: "/venues", label: "Venues", icon: "room" },
     { path: "/courses", label: "Courses", icon: "school" },
+    { path: "/enrollments", label: "Enrollments", icon: "library_books" },
     { path: "/check-in-history", label: "Check-in History", icon: "history" },
+    { path: "/profile", label: "Profile", icon: "person" },
   ];
 
   // Admin menu items

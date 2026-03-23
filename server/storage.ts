@@ -475,6 +475,77 @@ export const storage = {
       .orderBy(desc(schema.enrollments.createdAt));
   },
 
+  async deleteEnrollment(enrollmentId: number, userId: number): Promise<boolean> {
+    // Verify the enrollment belongs to the user
+    const enrollment = await db
+      .select()
+      .from(schema.enrollments)
+      .where(eq(schema.enrollments.id, enrollmentId))
+      .limit(1);
+
+    if (enrollment.length === 0 || enrollment[0].studentId !== userId) {
+      throw new Error("Enrollment not found or unauthorized");
+    }
+
+    await db.delete(schema.enrollments).where(eq(schema.enrollments.id, enrollmentId));
+    return true;
+  },
+
+  async getAttendanceStats(userId: number): Promise<any> {
+    // Get total check-ins
+    const totalCheckInsResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.checkIns)
+      .where(eq(schema.checkIns.userId, userId));
+
+    const totalCheckIns = totalCheckInsResult[0]?.count || 0;
+
+    // Get on-time check-ins
+    const onTimeCheckInsResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.checkIns)
+      .where(
+        and(
+          eq(schema.checkIns.userId, userId),
+          eq(schema.checkIns.status, "on-time")
+        )
+      );
+
+    const onTimeCheckIns = onTimeCheckInsResult[0]?.count || 0;
+
+    // Calculate attendance rate
+    const attendanceRate = totalCheckIns > 0 
+      ? Math.round((onTimeCheckIns / totalCheckIns) * 100) 
+      : 0;
+
+    // Get recent check-ins (last 5)
+    const recentCheckIns = await db
+      .select({
+        id: schema.checkIns.id,
+        date: schema.checkIns.date,
+        checkInTime: schema.checkIns.checkInTime,
+        status: schema.checkIns.status,
+        courseName: schema.courses.name,
+        courseCode: schema.courses.code,
+        venueName: schema.venues.name,
+      })
+      .from(schema.checkIns)
+      .innerJoin(schema.classes, eq(schema.checkIns.classId, schema.classes.id))
+      .innerJoin(schema.courses, eq(schema.classes.courseId, schema.courses.id))
+      .innerJoin(schema.venues, eq(schema.checkIns.venueId, schema.venues.id))
+      .where(eq(schema.checkIns.userId, userId))
+      .orderBy(desc(schema.checkIns.checkInTime))
+      .limit(5);
+
+    return {
+      totalCheckIns,
+      onTimeCheckIns,
+      lateCheckIns: totalCheckIns - onTimeCheckIns,
+      attendanceRate,
+      recentCheckIns,
+    };
+  },
+
   // Terms methods
   async getAvailableTerms(): Promise<string[]> {
     const results = await db

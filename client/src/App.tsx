@@ -5,6 +5,8 @@ import TimetablePage from "@/pages/timetable";
 import VenuesPage from "@/pages/venues";
 import CoursesPage from "@/pages/courses";
 import CheckInHistoryPage from "@/pages/check-in-history";
+import ProfilePage from "@/pages/profile";
+import EnrollmentsPage from "@/pages/enrollments";
 import ManageTimetablesPage from "@/pages/admin/manage-timetables";
 import ManageVenuesPage from "@/pages/admin/manage-venues";
 import UsersPage from "@/pages/admin/users";
@@ -51,6 +53,8 @@ function App() {
       <Route path="/timetable" component={TimetablePage} />
       <Route path="/venues" component={VenuesPage} />
       <Route path="/courses" component={CoursesPage} />
+      <Route path="/enrollments" component={EnrollmentsPage} />
+      <Route path="/profile" component={ProfilePage} />
       <Route path="/check-in-history" component={CheckInHistoryPage} />
       <Route path="/admin/manage-timetables" component={ManageTimetablesPage} />
       <Route path="/admin/manage-venues" component={ManageVenuesPage} />
