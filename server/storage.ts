@@ -577,3 +577,246 @@ export const storage = {
     };
   },
 };
+
+  // Assignment methods
+  async createAssignment(assignmentData: schema.InsertAssignment): Promise<schema.Assignment> {
+    const [assignment] = await db.insert(schema.assignments).values(assignmentData).returning();
+    return assignment;
+  },
+
+  async getAssignmentsByCourse(courseId: number): Promise<schema.Assignment[]> {
+    return await db
+      .select()
+      .from(schema.assignments)
+      .where(eq(schema.assignments.courseId, courseId))
+      .orderBy(desc(schema.assignments.dueDate));
+  },
+
+  async getAssignmentById(id: number): Promise<schema.Assignment | null> {
+    const assignments = await db.select().from(schema.assignments).where(eq(schema.assignments.id, id)).limit(1);
+    return assignments.length > 0 ? assignments[0] : null;
+  },
+
+  async updateAssignment(assignmentId: number, assignmentData: Partial<schema.Assignment>): Promise<schema.Assignment | null> {
+    const [updatedAssignment] = await db
+      .update(schema.assignments)
+      .set({ ...assignmentData, updatedAt: new Date() })
+      .where(eq(schema.assignments.id, assignmentId))
+      .returning();
+    return updatedAssignment || null;
+  },
+
+  async deleteAssignment(assignmentId: number): Promise<boolean> {
+    await db.delete(schema.assignments).where(eq(schema.assignments.id, assignmentId));
+    return true;
+  },
+
+  // Assignment submission methods
+  async submitAssignment(submissionData: schema.InsertAssignmentSubmission): Promise<schema.AssignmentSubmission> {
+    const [submission] = await db.insert(schema.assignmentSubmissions).values(submissionData).returning();
+    return submission;
+  },
+
+  async getSubmissionByStudentAndAssignment(studentId: number, assignmentId: number): Promise<schema.AssignmentSubmission | null> {
+    const submissions = await db
+      .select()
+      .from(schema.assignmentSubmissions)
+      .where(
+        and(
+          eq(schema.assignmentSubmissions.studentId, studentId),
+          eq(schema.assignmentSubmissions.assignmentId, assignmentId)
+        )
+      )
+      .limit(1);
+    return submissions.length > 0 ? submissions[0] : null;
+  },
+
+  async gradeAssignment(submissionId: number, grade: number, feedback: string, gradedBy: number): Promise<schema.AssignmentSubmission | null> {
+    const [updatedSubmission] = await db
+      .update(schema.assignmentSubmissions)
+      .set({ 
+        grade, 
+        feedback, 
+        gradedBy, 
+        gradedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(schema.assignmentSubmissions.id, submissionId))
+      .returning();
+    return updatedSubmission || null;
+  },
+
+  async getSubmissionsForAssignment(assignmentId: number): Promise<any[]> {
+    return await db
+      .select({
+        id: schema.assignmentSubmissions.id,
+        submissionText: schema.assignmentSubmissions.submissionText,
+        fileUrl: schema.assignmentSubmissions.fileUrl,
+        submittedAt: schema.assignmentSubmissions.submittedAt,
+        grade: schema.assignmentSubmissions.grade,
+        feedback: schema.assignmentSubmissions.feedback,
+        isLate: schema.assignmentSubmissions.isLate,
+        studentName: sql<string>`concat(${schema.users.firstName}, ' ', ${schema.users.lastName})`,
+        studentEmail: schema.users.email,
+      })
+      .from(schema.assignmentSubmissions)
+      .innerJoin(schema.users, eq(schema.assignmentSubmissions.studentId, schema.users.id))
+      .where(eq(schema.assignmentSubmissions.assignmentId, assignmentId))
+      .orderBy(desc(schema.assignmentSubmissions.submittedAt));
+  },
+
+  // Grade methods
+  async saveGrade(gradeData: schema.InsertGrade): Promise<schema.Grade> {
+    const [grade] = await db.insert(schema.grades).values(gradeData).returning();
+    return grade;
+  },
+
+  async getGradesForStudent(studentId: number, term?: string): Promise<any[]> {
+    const query = db
+      .select({
+        id: schema.grades.id,
+        midtermGrade: schema.grades.midtermGrade,
+        finalGrade: schema.grades.finalGrade,
+        overallGrade: schema.grades.overallGrade,
+        letterGrade: schema.grades.letterGrade,
+        gpa: schema.grades.gpa,
+        comments: schema.grades.comments,
+        courseName: schema.courses.name,
+        courseCode: schema.courses.code,
+        department: schema.courses.department,
+        term: schema.grades.term,
+        isPublished: schema.grades.isPublished,
+      })
+      .from(schema.grades)
+      .innerJoin(schema.courses, eq(schema.grades.courseId, schema.courses.id))
+      .where(eq(schema.grades.studentId, studentId))
+      .orderBy(desc(schema.grades.term));
+
+    if (term) {
+      return await query.where(eq(schema.grades.term, term));
+    }
+    return await query;
+  },
+
+  async publishGrade(gradeId: number): Promise<schema.Grade | null> {
+    const [updatedGrade] = await db
+      .update(schema.grades)
+      .set({ isPublished: true, updatedAt: new Date() })
+      .where(eq(schema.grades.id, gradeId))
+      .returning();
+    return updatedGrade || null;
+  },
+
+  // Announcement methods
+  async createAnnouncement(announcementData: schema.InsertAnnouncement): Promise<schema.Announcement> {
+    const [announcement] = await db.insert(schema.announcements).values(announcementData).returning();
+    return announcement;
+  },
+
+  async getAnnouncementsByCourse(courseId: number): Promise<any[]> {
+    return await db
+      .select({
+        id: schema.announcements.id,
+        title: schema.announcements.title,
+        content: schema.announcements.content,
+        type: schema.announcements.type,
+        isPinned: schema.announcements.isPinned,
+        isLocked: schema.announcements.isLocked,
+        createdAt: schema.announcements.createdAt,
+        authorName: sql<string>`concat(${schema.users.firstName}, ' ', ${schema.users.lastName})`,
+        authorRole: schema.users.role,
+        replyCount: sql<number>`count(${schema.announcementReplies.id})`,
+      })
+      .from(schema.announcements)
+      .leftJoin(schema.users, eq(schema.announcements.userId, schema.users.id))
+      .leftJoin(schema.announcementReplies, eq(schema.announcements.id, schema.announcementReplies.announcementId))
+      .where(eq(schema.announcements.courseId, courseId))
+      .groupBy(schema.announcements.id, schema.users.firstName, schema.users.lastName, schema.users.role)
+      .orderBy(desc(schema.announcements.isPinned), desc(schema.announcements.createdAt));
+  },
+
+  async getAnnouncementById(id: number): Promise<schema.Announcement | null> {
+    const announcements = await db.select().from(schema.announcements).where(eq(schema.announcements.id, id)).limit(1);
+    return announcements.length > 0 ? announcements[0] : null;
+  },
+
+  async updateAnnouncement(announcementId: number, announcementData: Partial<schema.Announcement>): Promise<schema.Announcement | null> {
+    const [updatedAnnouncement] = await db
+      .update(schema.announcements)
+      .set({ ...announcementData, updatedAt: new Date() })
+      .where(eq(schema.announcements.id, announcementId))
+      .returning();
+    return updatedAnnouncement || null;
+  },
+
+  async deleteAnnouncement(announcementId: number): Promise<boolean> {
+    await db.delete(schema.announcements).where(eq(schema.announcements.id, announcementId));
+    return true;
+  },
+
+  // Announcement reply methods
+  async createAnnouncementReply(replyData: schema.InsertAnnouncementReply): Promise<schema.AnnouncementReply> {
+    const [reply] = await db.insert(schema.announcementReplies).values(replyData).returning();
+    return reply;
+  },
+
+  async getRepliesForAnnouncement(announcementId: number): Promise<any[]> {
+    return await db
+      .select({
+        id: schema.announcementReplies.id,
+        content: schema.announcementReplies.content,
+        createdAt: schema.announcementReplies.createdAt,
+        authorName: sql<string>`concat(${schema.users.firstName}, ' ', ${schema.users.lastName})`,
+        authorRole: schema.users.role,
+      })
+      .from(schema.announcementReplies)
+      .innerJoin(schema.users, eq(schema.announcementReplies.userId, schema.users.id))
+      .where(eq(schema.announcementReplies.announcementId, announcementId))
+      .orderBy(asc(schema.announcementReplies.createdAt));
+  },
+
+  // QR Code session methods
+  async createQrCodeSession(sessionData: schema.InsertQrCodeSession): Promise<schema.QrCodeSession> {
+    const [session] = await db.insert(schema.qrCodeSessions).values(sessionData).returning();
+    return session;
+  },
+
+  async getActiveQrCodeSession(classId: number): Promise<schema.QrCodeSession | null> {
+    const sessions = await db
+      .select()
+      .from(schema.qrCodeSessions)
+      .where(
+        and(
+          eq(schema.qrCodeSessions.classId, classId),
+          eq(schema.qrCodeSessions.isActive, true),
+          sql`${schema.qrCodeSessions.expires_at} > now()`
+        )
+      )
+      .orderBy(desc(schema.qrCodeSessions.createdAt))
+      .limit(1);
+    return sessions.length > 0 ? sessions[0] : null;
+  },
+
+  async validateQrCode(qrCodeData: string): Promise<schema.QrCodeSession | null> {
+    const sessions = await db
+      .select()
+      .from(schema.qrCodeSessions)
+      .where(
+        and(
+          eq(schema.qrCodeSessions.qrCodeData, qrCodeData),
+          eq(schema.qrCodeSessions.isActive, true),
+          sql`${schema.qrCodeSessions.expires_at} > now()`
+        )
+      )
+      .limit(1);
+    return sessions.length > 0 ? sessions[0] : null;
+  },
+
+  async deactivateQrCodeSession(sessionId: number): Promise<boolean> {
+    await db
+      .update(schema.qrCodeSessions)
+      .set({ isActive: false })
+      .where(eq(schema.qrCodeSessions.id, sessionId));
+    return true;
+  },
+};
