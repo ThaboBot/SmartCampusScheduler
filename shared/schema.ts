@@ -109,6 +109,90 @@ export const enrollments = pgTable("enrollments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Assignment Table
+export const assignments = pgTable("assignments", {
+  id: serial("id").primaryKey(),
+  courseId: integer("course_id").references(() => courses.id).notNull(),
+  lecturerId: integer("lecturer_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  dueDate: text("due_date").notNull(), // YYYY-MM-DD
+  dueTime: text("due_time"), // HH:MM
+  maxScore: integer("max_score").default(100).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Assignment Submission Table
+export const assignmentSubmissions = pgTable("assignment_submissions", {
+  id: serial("id").primaryKey(),
+  assignmentId: integer("assignment_id").references(() => assignments.id).notNull(),
+  studentId: integer("student_id").references(() => users.id).notNull(),
+  submissionText: text("submission_text"),
+  fileUrl: text("file_url"),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  grade: integer("grade"),
+  feedback: text("feedback"),
+  gradedBy: integer("graded_by").references(() => users.id),
+  gradedAt: timestamp("graded_at"),
+  isLate: boolean("is_late").default(false).notNull(),
+});
+
+// Grade Table (for overall course grades)
+export const grades = pgTable("grades", {
+  id: serial("id").primaryKey(),
+  enrollmentId: integer("enrollment_id").references(() => enrollments.id).notNull(),
+  studentId: integer("student_id").references(() => users.id).notNull(),
+  courseId: integer("course_id").references(() => courses.id).notNull(),
+  lecturerId: integer("lecturer_id").references(() => users.id).notNull(),
+  midtermGrade: integer("midterm_grade"),
+  finalGrade: integer("final_grade"),
+  overallGrade: integer("overall_grade"),
+  letterGrade: text("letter_grade"), // A, B+, B, etc.
+  gpa: numeric("gpa"),
+  comments: text("comments"),
+  term: text("term").notNull(),
+  isPublished: boolean("is_published").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Announcement/Discussion Post Table
+export const announcements = pgTable("announcements", {
+  id: serial("id").primaryKey(),
+  courseId: integer("course_id").references(() => courses.id),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  type: text("type").default("announcement").notNull(), // announcement, discussion
+  isPinned: boolean("is_pinned").default(false).notNull(),
+  isLocked: boolean("is_locked").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Announcement Reply Table
+export const announcementReplies = pgTable("announcement_replies", {
+  id: serial("id").primaryKey(),
+  announcementId: integer("announcement_id").references(() => announcements.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// QR Code Session Table (for attendance)
+export const qrCodeSessions = pgTable("qr_code_sessions", {
+  id: serial("id").primaryKey(),
+  classId: integer("class_id").references(() => classes.id).notNull(),
+  lecturerId: integer("lecturer_id").references(() => users.id).notNull(),
+  qrCodeData: text("qr_code_data").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -158,6 +242,63 @@ export const enrollmentsRelations = relations(enrollments, ({ one }) => ({
   course: one(courses, { fields: [enrollments.courseId], references: [courses.id] }),
 }));
 
+// New Relations for Added Tables
+export const coursesRelationsWithAssignments = relations(courses, ({ many }) => ({
+  assignments: many(assignments),
+  grades: many(grades),
+  announcements: many(announcements),
+}));
+
+export const usersRelationsExtended = relations(users, ({ many }) => ({
+  assignmentsCreated: many(assignments),
+  gradedSubmissions: many(assignmentSubmissions, { relationName: "grader" }),
+  submissions: many(assignmentSubmissions, { relationName: "student" }),
+  gradesGiven: many(grades, { relationName: "lecturer" }),
+  gradesReceived: many(grades, { relationName: "student" }),
+  announcements: many(announcements),
+  announcementReplies: many(announcementReplies),
+  qrCodeSessions: many(qrCodeSessions),
+}));
+
+export const classesRelationsWithQR = relations(classes, ({ many }) => ({
+  qrCodeSessions: many(qrCodeSessions),
+}));
+
+export const assignmentsRelations = relations(assignments, ({ one, many }) => ({
+  course: one(courses, { fields: [assignments.courseId], references: [courses.id] }),
+  lecturer: one(users, { fields: [assignments.lecturerId], references: [users.id] }),
+  submissions: many(assignmentSubmissions),
+}));
+
+export const assignmentSubmissionsRelations = relations(assignmentSubmissions, ({ one }) => ({
+  assignment: one(assignments, { fields: [assignmentSubmissions.assignmentId], references: [assignments.id] }),
+  student: one(users, { fields: [assignmentSubmissions.studentId], references: [users.id], relationName: "student" }),
+  grader: one(users, { fields: [assignmentSubmissions.gradedBy], references: [users.id], relationName: "grader" }),
+}));
+
+export const gradesRelations = relations(grades, ({ one }) => ({
+  enrollment: one(enrollments, { fields: [grades.enrollmentId], references: [enrollments.id] }),
+  student: one(users, { fields: [grades.studentId], references: [users.id], relationName: "student" }),
+  course: one(courses, { fields: [grades.courseId], references: [courses.id] }),
+  lecturer: one(users, { fields: [grades.lecturerId], references: [users.id], relationName: "lecturer" }),
+}));
+
+export const announcementsRelations = relations(announcements, ({ one, many }) => ({
+  course: one(courses, { fields: [announcements.courseId], references: [courses.id] }),
+  author: one(users, { fields: [announcements.userId], references: [users.id] }),
+  replies: many(announcementReplies),
+}));
+
+export const announcementRepliesRelations = relations(announcementReplies, ({ one }) => ({
+  announcement: one(announcements, { fields: [announcementReplies.announcementId], references: [announcements.id] }),
+  author: one(users, { fields: [announcementReplies.userId], references: [users.id] }),
+}));
+
+export const qrCodeSessionsRelations = relations(qrCodeSessions, ({ one }) => ({
+  class: one(classes, { fields: [qrCodeSessions.classId], references: [classes.id] }),
+  lecturer: one(users, { fields: [qrCodeSessions.lecturerId], references: [users.id] }),
+}));
+
 // Validation Schemas
 export const insertUserSchema = createInsertSchema(users, {
   firstName: (schema) => schema.min(2, "First name must be at least 2 characters"),
@@ -184,6 +325,20 @@ export const insertCheckInSchema = createInsertSchema(checkIns);
 export const insertNotificationSchema = createInsertSchema(notifications);
 export const insertVenueChangeSchema = createInsertSchema(venueChanges);
 export const insertEnrollmentSchema = createInsertSchema(enrollments);
+export const insertAssignmentSchema = createInsertSchema(assignments, {
+  title: (schema) => schema.min(3, "Assignment title must be at least 3 characters"),
+  dueDate: (schema) => schema.regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be in YYYY-MM-DD format"),
+});
+export const insertAssignmentSubmissionSchema = createInsertSchema(assignmentSubmissions);
+export const insertGradeSchema = createInsertSchema(grades);
+export const insertAnnouncementSchema = createInsertSchema(announcements, {
+  title: (schema) => schema.min(3, "Title must be at least 3 characters"),
+  content: (schema) => schema.min(10, "Content must be at least 10 characters"),
+});
+export const insertAnnouncementReplySchema = createInsertSchema(announcementReplies, {
+  content: (schema) => schema.min(1, "Reply content cannot be empty"),
+});
+export const insertQrCodeSessionSchema = createInsertSchema(qrCodeSessions);
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -202,6 +357,18 @@ export type VenueChange = typeof venueChanges.$inferSelect;
 export type InsertVenueChange = z.infer<typeof insertVenueChangeSchema>;
 export type Enrollment = typeof enrollments.$inferSelect;
 export type InsertEnrollment = z.infer<typeof insertEnrollmentSchema>;
+export type Assignment = typeof assignments.$inferSelect;
+export type InsertAssignment = z.infer<typeof insertAssignmentSchema>;
+export type AssignmentSubmission = typeof assignmentSubmissions.$inferSelect;
+export type InsertAssignmentSubmission = z.infer<typeof insertAssignmentSubmissionSchema>;
+export type Grade = typeof grades.$inferSelect;
+export type InsertGrade = z.infer<typeof insertGradeSchema>;
+export type Announcement = typeof announcements.$inferSelect;
+export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
+export type AnnouncementReply = typeof announcementReplies.$inferSelect;
+export type InsertAnnouncementReply = z.infer<typeof insertAnnouncementReplySchema>;
+export type QrCodeSession = typeof qrCodeSessions.$inferSelect;
+export type InsertQrCodeSession = z.infer<typeof insertQrCodeSessionSchema>;
 
 // Login Schema
 export const loginSchema = z.object({
