@@ -25,19 +25,24 @@ def login_access_token(
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
+    Uses generic error messages to prevent user enumeration.
     """
     user = crud.user.authenticate(
         db, email=form_data.username, password=form_data.password
     )
     if not user:
+        # Generic error message to prevent user enumeration
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     elif not crud.user.is_active(user):
+        # Still use generic message to avoid revealing account status
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -65,12 +70,14 @@ def register_user(
 ) -> Any:
     """
     Create new user without authentication (for registration).
+    Uses generic error message to prevent user enumeration.
     """
     user = crud.user.get_by_email(db, email=user_in.email)
     if user:
+        # Generic error to prevent revealing which emails are registered
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A user with this email already exists.",
+            detail="Registration failed. Please try a different email or contact support.",
         )
     
     user = crud.user.create(db, obj_in=user_in)
@@ -81,16 +88,16 @@ def register_user(
 def recover_password(email: str, db: Session = Depends(get_db)) -> Any:
     """
     Password Recovery endpoint.
+    Always returns success message to prevent user enumeration.
     """
     user = crud.user.get_by_email(db, email=email)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No user found with this email address.",
-        )
+    if user:
+        # TODO: Implement email sending with recovery token
+        # Only send email if user exists, but always return same message
+        pass
     
-    # TODO: Implement email sending with recovery token
-    return {"message": "Password recovery email sent"}
+    # Always return success to prevent revealing which emails are registered
+    return {"message": "If an account exists with this email, a password recovery link has been sent."}
 
 
 @router.post("/reset-password/")

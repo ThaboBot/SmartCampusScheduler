@@ -304,7 +304,12 @@ export const insertUserSchema = createInsertSchema(users, {
   firstName: (schema) => schema.min(2, "First name must be at least 2 characters"),
   lastName: (schema) => schema.min(2, "Last name must be at least 2 characters"),
   email: (schema) => schema.email("Please enter a valid email"),
-  password: (schema) => schema.min(6, "Password must be at least 6 characters"),
+  password: (schema) => schema
+    .min(12, "Password must be at least 12 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
 });
 
 export const insertVenueSchema = createInsertSchema(venues, {
