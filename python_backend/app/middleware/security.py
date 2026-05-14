@@ -27,10 +27,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         
         # Content Security Policy (CSP)
-        # Adjust based on your application's needs
+        # Adjust based on your application's needs - removed unsafe-inline and unsafe-eval
         csp_policy = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: https:; "
             "font-src 'self' data:; "
@@ -41,22 +41,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers["Content-Security-Policy"] = csp_policy
         
-        # Permissions Policy (formerly Feature-Policy)
-        permissions_policy = (
-            "geolocation=(), "
-            "microphone=(), "
-            "camera=(), "
-            "payment=(), "
-            "usb=(), "
-            "magnetometer=(), "
-            "gyroscope=(), "
-            "accelerometer=()"
-        )
-        response.headers["Permissions-Policy"] = permissions_policy
-        
-        # HTTP Strict Transport Security (HSTS)
-        # Only enable in production with valid HTTPS
-        # response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        # HTTP Strict Transport Security (HSTS) - enabled for production
+        # Note: Only enable after ensuring HTTPS is properly configured
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
         
         # Cache control for sensitive endpoints
         if request.url.path.startswith("/api/"):

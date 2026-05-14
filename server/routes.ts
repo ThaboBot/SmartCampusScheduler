@@ -8,6 +8,25 @@ import * as timetableController from "./controllers/timetable";
 import * as venueController from "./controllers/venue";
 import * as checkInController from "./controllers/check-in";
 import * as notificationController from "./controllers/notification";
+import rateLimit from "express-rate-limit";
+
+// Rate limiting configuration for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests per windowMs
+  message: { message: "Too many login attempts, please try again after 15 minutes" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// General API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // Limit each IP to 60 requests per minute
+  message: { message: "Too many requests, please slow down" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -40,11 +59,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  // Authentication routes
-  app.post('/api/auth/register', authController.register);
-  app.post('/api/auth/login', authController.login);
-  app.post('/api/auth/logout', authController.logout);
+  // Authentication routes (with rate limiting)
+  app.post('/api/auth/register', authLimiter, authController.register);
+  app.post('/api/auth/login', authLimiter, authController.login);
+  app.post('/api/auth/logout', authenticateJWT, authController.logout);
   app.get('/api/auth/me', authenticateJWT, authController.getCurrentUser);
+  
+  // Apply general API rate limiter to all other API routes
+  app.use('/api', apiLimiter);
 
   // Dashboard routes
   app.get('/api/dashboard', authenticateJWT, async (req, res) => {

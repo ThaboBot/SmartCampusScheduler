@@ -34,10 +34,20 @@ class Settings(BaseSettings):
     REDIS_CACHE_TTL: int = Field(default=300, env="REDIS_CACHE_TTL")  # 5 minutes
     
     # Security
-    SECRET_KEY: str = Field(default="your-secret-key-change-in-production", env="SECRET_KEY")
+    SECRET_KEY: str = Field(env="SECRET_KEY")
     ALGORITHM: str = Field(default="HS256", env="ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, env="REFRESH_TOKEN_EXPIRE_DAYS")
+    
+    @classmethod
+    def validate_secret_key(cls, values):
+        """Validate that SECRET_KEY is properly configured."""
+        secret_key = values.get('SECRET_KEY')
+        if not secret_key or secret_key == "your-secret-key-change-in-production":
+            raise ValueError("SECRET_KEY environment variable is required and must be set to a secure value")
+        if len(secret_key) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters long for security")
+        return values
     
     # CORS
     CORS_ORIGINS: List[str] = Field(

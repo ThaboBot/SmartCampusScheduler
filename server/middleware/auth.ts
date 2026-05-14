@@ -2,8 +2,11 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { storage } from "../storage";
 
-// JWT Secret should be in environment variable in production
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
+// Validate JWT_SECRET is properly configured
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required. Please set it in your .env file.");
+}
 
 // Extend Express Request type to include user property
 declare global {

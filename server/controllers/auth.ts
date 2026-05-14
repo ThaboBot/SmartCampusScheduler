@@ -4,7 +4,11 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { loginSchema, insertUserSchema } from "@shared/schema";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret"; // In production, use environment variable
+// Validate JWT_SECRET is properly configured
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required. Please set it in your .env file.");
+}
 
 export async function register(req: Request, res: Response) {
   try {

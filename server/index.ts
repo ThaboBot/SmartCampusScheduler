@@ -40,11 +40,18 @@ app.use((req, res, next) => {
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    // Log the full error for debugging (server-side only)
+    console.error("Error:", err);
+    
+    // Determine status code
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    
+    // Return generic error message to client (never expose internal details)
+    const message = status === 500 
+      ? "Internal Server Error" 
+      : (err.message || "An error occurred");
 
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
